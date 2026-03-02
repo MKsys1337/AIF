@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AIF Demo — Adaptive Image Format</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --fg: #111111;
+      --surface: #f5f5f5;
+      --border: #e0e0e0;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1a1a2e;
+        --fg: #e0e0e0;
+        --surface: #16213e;
+        --border: #2a2a4a;
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+    h1 { margin-bottom: 0.5rem; }
+    p.subtitle { opacity: 0.7; margin-bottom: 2rem; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .card h2 { margin-bottom: 0.75rem; font-size: 1.1rem; }
+    .card img {
+      width: 100%;
+      border-radius: 8px;
+      display: block;
+    }
+    .label {
+      display: inline-block;
+      font-size: 0.75rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      background: var(--border);
+      margin-top: 0.75rem;
+    }
+    .controls {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 2rem;
+    }
+    button {
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--fg);
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    button:hover { opacity: 0.8; }
+    button.active { border-color: #4DA6FF; background: #4DA6FF22; }
+  </style>
+</head>
+<body>
+  <h1>Adaptive Image Format</h1>
+  <p class="subtitle">Toggle your system theme (or use the buttons below) to see AIF in action.</p>
+
+  <div class="controls">
+    <button onclick="setTheme('auto')" id="btn-auto" class="active">Auto</button>
+    <button onclick="setTheme('light')" id="btn-light">Light</button>
+    <button onclick="setTheme('dark')" id="btn-dark">Dark</button>
+  </div>
+
+  <div class="card">
+    <h2>Screenshot (CLUT strategy)</h2>
+    <img
+      src="../../docs/images/screenshot-light.png"
+      alt="iOS Settings screenshot"
+      data-aif-content-type="screenshot"
+      data-aif-source-scheme="light"
+      data-aif-invert-safe="true"
+      data-aif-transform-strategy="clut"
+      data-aif-adaptation-hint="clut-remap"
+      data-aif-dark-src="../../docs/images/screenshot-dark.png"
+    />
+    <span class="label">ContentType: screenshot | Strategy: clut-remap</span>
+  </div>
+
+  <div class="card">
+    <h2>Diagram (luminance map)</h2>
+    <img
+      src="../../docs/images/diagram-light.png"
+      alt="Quarterly revenue bar chart"
+      data-aif-content-type="diagram"
+      data-aif-source-scheme="light"
+      data-aif-invert-safe="true"
+      data-aif-transform-strategy="luminance_map"
+      data-aif-adaptation-hint="invert-luminance"
+      data-aif-dark-src="../../docs/images/diagram-dark.png"
+    />
+    <span class="label">ContentType: diagram | Strategy: luminance-map</span>
+  </div>
+
+  <div class="card">
+    <h2>Photo (dim only)</h2>
+    <img
+      src="../../docs/images/photo-light.png"
+      alt="Landscape photo"
+      data-aif-content-type="photo"
+      data-aif-source-scheme="light"
+      data-aif-invert-safe="false"
+      data-aif-dark-src="../../docs/images/photo-dark.png"
+    />
+    <span class="label">ContentType: photo | Strategy: brightness(0.85)</span>
+  </div>
+
+  <script type="module">
+    // In production, import from the npm package:
+    // import { AIFRenderer, observeImages } from "@aif/renderer";
+    //
+    // For this demo, we inline a minimal version of the renderer logic.
+
+    class DemoAIFRenderer {
+      constructor() {
+        this.isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        this._appTheme = 'auto';
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+          this.isDarkMode = e.matches;
+          this.reprocessAll();
+        });
+      }
+
+      get effectiveTheme() {
+        if (this._appTheme !== 'auto') return this._appTheme;
+        return this.isDarkMode ? 'dark' : 'light';
+      }
+
+      setAppTheme(theme) {
+        this._appTheme = theme;
+        this.reprocessAll();
+      }
+
+      processImage(img) {
+        img.style.transition = 'filter 0.3s ease, opacity 0.3s ease';
+
+        // Store the original light src on first encounter
+        if (!img.dataset._aifLightSrc) {
+          img.dataset._aifLightSrc = img.getAttribute('src');
+        }
+
+        const darkSrc = img.dataset.aifDarkSrc;
+        const lightSrc = img.dataset._aifLightSrc;
+
+        if (this.effectiveTheme !== 'dark') {
+          // Restore light variant
+          if (lightSrc && img.getAttribute('src') !== lightSrc) {
+            img.setAttribute('src', lightSrc);
+          }
+          img.style.filter = '';
+          return;
+        }
+
+        // Dark mode: swap to pre-rendered dark image if available
+        if (darkSrc) {
+          if (img.getAttribute('src') !== darkSrc) {
+            img.setAttribute('src', darkSrc);
+          }
+          img.style.filter = '';
+          return;
+        }
+
+        // Fallback: CSS filters
+        const contentType = img.dataset.aifContentType;
+        if (!contentType) {
+          img.style.filter = 'brightness(0.85)';
+          return;
+        }
+        switch (contentType) {
+          case 'screenshot':
+          case 'diagram':
+          case 'text_post':
+          case 'icon':
+            img.style.filter = 'invert(1) hue-rotate(180deg)';
+            break;
+          case 'photo':
+            img.style.filter = 'brightness(0.85)';
+            break;
+          default:
+            img.style.filter = 'brightness(0.85)';
+        }
+      }
+
+      reprocessAll() {
+        document.querySelectorAll('img').forEach(img => this.processImage(img));
+      }
+    }
+
+    const renderer = new DemoAIFRenderer();
+    renderer.reprocessAll();
+
+    // Expose for the theme buttons
+    window.setTheme = (theme) => {
+      renderer.setAppTheme(theme);
+      document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+      document.getElementById(`btn-${theme}`).classList.add('active');
+    };
+  </script>
+</body>
+</html>

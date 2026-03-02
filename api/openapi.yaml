@@ -1,0 +1,320 @@
+openapi: 3.1.0
+info:
+  title: Adaptive Image Format (AIF) API
+  version: 1.0.0
+  description: |
+    API for the Adaptive Image Format (AIF) — automatic dark/light mode
+    adaptation of user-uploaded images.
+  license:
+    name: AGPL-3.0-or-later
+    url: https://www.gnu.org/licenses/agpl-3.0.html
+  contact:
+    name: Markus Köplin
+
+servers:
+  - url: https://api.platform.com
+    description: Production
+
+paths:
+  /api/v2/media/upload:
+    post:
+      summary: Upload image with automatic AIF processing
+      operationId: uploadImage
+      tags:
+        - Upload
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Image file (JPEG, PNG, WebP, GIF, AVIF)
+                aif_enabled:
+                  type: boolean
+                  default: true
+                  description: |
+                    Enable AIF processing. Default: true (opt-out, not opt-in).
+                aif_dark_palette:
+                  type: string
+                  description: |
+                    Optional custom dark palette as JSON string.
+                    If omitted, the platform default palette is used.
+                  example: '{"background":"#1A1A2E","text":"#E0E0E0"}'
+      responses:
+        "201":
+          description: Image uploaded and processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadResponse"
+        "202":
+          description: |
+            Image uploaded; AIF processing is running asynchronously.
+            Returned when processing would take > 2 seconds.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadResponseAsync"
+
+  /internal/classify:
+    post:
+      summary: Classify an image (internal microservice)
+      operationId: classifyImage
+      tags:
+        - Internal
+      description: |
+        Internal endpoint — not publicly accessible.
+        Called by the upload pipeline. Latency budget: < 100 ms (p99).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                image_url:
+                  type: string
+                  format: uri
+                  description: URL to the image in object storage
+                image_bytes:
+                  type: string
+                  format: byte
+                  description: |
+                    Alternative: Base64-encoded image.
+                    More efficient than URL fetch for images < 1 MB.
+                use_ml:
+                  type: boolean
+                  default: true
+                  description: |
+                    Whether to use the ML model. Set false for heuristics only.
+      responses:
+        "200":
+          description: Classification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClassificationResult"
+
+components:
+  schemas:
+    UploadResponse:
+      type: object
+      required:
+        - id
+        - url
+        - aif
+      properties:
+        id:
+          type: string
+          example: img_abc123def456
+        url:
+          type: string
+          format: uri
+          example: https://cdn.platform.com/images/abc123def456.avif
+        width:
+          type: integer
+          example: 1170
+        height:
+          type: integer
+          example: 2532
+        format:
+          type: string
+          example: avif
+        size_bytes:
+          type: integer
+          example: 184320
+        aif:
+          $ref: "#/components/schemas/AIFInfo"
+
+    UploadResponseAsync:
+      type: object
+      properties:
+        id:
+          type: string
+        url:
+          type: string
+          format: uri
+        aif:
+          type: object
+          properties:
+            processed:
+              type: boolean
+              example: false
+            status:
+              type: string
+              example: processing
+            poll_url:
+              type: string
+              format: uri
+              example: https://api.platform.com/v2/media/img_abc123/aif/status
+
+    AIFInfo:
+      type: object
+      description: AIF metadata of the processed image
+      properties:
+        processed:
+          type: boolean
+          example: true
+        content_type:
+          type: string
+          enum:
+            - photo
+            - screenshot
+            - diagram
+            - text_post
+            - meme
+            - icon
+            - mixed
+            - unknown
+          example: screenshot
+        classification_confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          example: 0.96
+        source_scheme:
+          type: string
+          enum:
+            - light
+            - dark
+            - unknown
+          example: light
+        invert_safe:
+          type: boolean
+          example: true
+        transform_strategy:
+          type: string
+          enum:
+            - clut
+            - luminance_map
+            - full_lab_map
+            - none
+          example: clut
+        palette_complexity:
+          type: string
+          enum:
+            - simple
+            - moderate
+            - complex
+          example: simple
+        dominant_background:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+          example: "#FFFFFF"
+        dominant_foreground:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+          example: "#333333"
+        palette_map:
+          type: string
+          description: CLUT mapping as a human-readable string
+          example: "#FFFFFF→#1A1A2E,#333333→#E0E0E0,#0066CC→#4DA6FF"
+        theme_map_embedded:
+          type: boolean
+          description: Whether a theme map is embedded in the AVIF container
+          example: false
+        size_overhead_bytes:
+          type: integer
+          description: Additional file size from AIF metadata (bytes)
+          example: 230
+        size_overhead_percent:
+          type: number
+          format: float
+          example: 0.12
+
+    ClassificationResult:
+      type: object
+      properties:
+        content_type:
+          type: string
+        confidence:
+          type: number
+        invert_safe:
+          type: boolean
+        all_scores:
+          type: object
+          additionalProperties:
+            type: number
+        heuristic_used:
+          type: boolean
+          description: Whether the heuristic was used instead of the ML model
+        latency_ms:
+          type: number
+
+  headers:
+    AIF-Version:
+      description: AIF specification version
+      schema:
+        type: string
+      example: "1.0"
+    AIF-Content-Type:
+      description: Image content type classification
+      schema:
+        type: string
+        enum:
+          - photo
+          - screenshot
+          - diagram
+          - text_post
+          - meme
+          - icon
+          - mixed
+          - unknown
+      example: screenshot
+    AIF-Source-Scheme:
+      description: Original color scheme of the image
+      schema:
+        type: string
+        enum:
+          - light
+          - dark
+          - unknown
+      example: light
+    AIF-Invert-Safe:
+      description: Whether luminance inversion can be safely applied
+      schema:
+        type: string
+        enum:
+          - "true"
+          - "false"
+      example: "true"
+    AIF-Transform-Strategy:
+      description: Recommended transformation strategy
+      schema:
+        type: string
+        enum:
+          - clut
+          - luminance_map
+          - full_lab_map
+          - dim_only
+          - none
+      example: clut
+    AIF-Palette-Map:
+      description: |
+        CLUT mapping. Each pair as SRC→DST, comma-separated.
+        Only present when strategy=clut.
+      schema:
+        type: string
+      example: "#FFFFFF→#1A1A2E,#333333→#E0E0E0,#0066CC→#4DA6FF"
+    AIF-Dominant-BG:
+      description: Dominant background color
+      schema:
+        type: string
+      example: "#FFFFFF"
+    AIF-Theme-Applied:
+      description: |
+        Present only when the server has already applied the transformation.
+        Clients should not perform their own transformation.
+      schema:
+        type: string
+        enum:
+          - light
+          - dark
+      example: dark

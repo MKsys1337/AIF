@@ -1,0 +1,97 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+*.pth
+dist/
+build/
+.eggs/
+*.whl
+.venv/
+venv/
+env/
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.tox/
+
+# =========================
+# Node.js / JavaScript
+# =========================
+node_modules/
+package-lock.json
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+packages/js/dist/
+*.tsbuildinfo
+.vitest/
+
+# =========================
+# Swift
+# =========================
+.build/
+.swiftpm/
+Package.resolved
+DerivedData/
+xcuserdata/
+*.xcworkspace
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.playground/
+packages/swift/Packages/
+
+# =========================
+# macOS
+# =========================
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# =========================
+# IDEs and Editors
+# =========================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# =========================
+# Environment / Secrets
+# =========================
+.env
+.env.*
+
+# =========================
+# Logs
+# =========================
+*.log
+
+# =========================
+# Claude Code
+# =========================
+.claude/
+
+# =========================
+# Test assets (generated)
+# =========================
+assets/test-images/*.png
+assets/test-images/*.jpg
+!assets/test-images/.gitkeep

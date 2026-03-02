@@ -1,0 +1,52 @@
+{
+  "name": "@aif/renderer",
+  "version": "0.1.0",
+  "description": "Adaptive Image Format — Client-side renderer for dark/light mode image adaptation",
+  "author": "Markus Köplin",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "jsdom": "^24.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^2.0.0"
+  },
+  "keywords": [
+    "image",
+    "dark-mode",
+    "adaptive",
+    "renderer",
+    "aif"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MKsys1337/AIF",
+    "directory": "packages/js"
+  },
+  "homepage": "https://github.com/MKsys1337/AIF#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
